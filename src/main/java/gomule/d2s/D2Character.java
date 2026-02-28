@@ -28,6 +28,7 @@ import gomule.item.D2BodyLocations;
 import gomule.item.D2Item;
 import gomule.item.D2ItemRenderer;
 import gomule.item.D2Prop;
+import gomule.model.VersionController;
 import gomule.util.D2Backup;
 import gomule.util.D2BitReader;
 import gomule.util.D2Project;
@@ -41,6 +42,11 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Map;
+
+import static gomule.model.VersionController.Variant.tryParseFileVersionIdentifier;
+import static gomule.model.VersionController.Version.D2R3;
+import static gomule.skills.SkillsHelpers.*;
 
 //a character class
 //manages one character file
@@ -68,13 +74,13 @@ public class D2Character extends D2ItemListAdapter {
     public static final int GOLEM_SLOT = 23;
 
     public static final int INVSIZEX = 10;
-    public static final int INVSIZEY = 8;
-    public static final int STASHSIZEX = 16;
-    public static final int STASHSIZEY = 13;
+    public static final int INVSIZEY = 4;
+    public static final int STASHSIZEX = 10;
+    public static final int STASHSIZEY = 10;
     public static final int BELTSIZEX = 4;
     public static final int BELTSIZEY = 4;
-    public static final int CUBESIZEX = 16;
-    public static final int CUBESIZEY = 13;
+    public static final int CUBESIZEX = 3;
+    public static final int CUBESIZEY = 4;
     D2TxtFileItemProperties mercHireCol;
     private D2BitReader iReader;
     private ArrayList iCharItems;
@@ -108,7 +114,7 @@ public class D2Character extends D2ItemListAdapter {
 //	private boolean fullChanged = false;
 //	private ArrayList partialSetProps = new ArrayList();
 //	private ArrayList fullSetProps = new ArrayList();
-    private int[][] setTracker;
+    private final Map<Integer, int[]> setTracker = new HashMap<>();
     private ArrayList plSkill;
     private long[] iReadStats = new long[16];
     private int[] cStats = new int[31];
@@ -126,25 +132,32 @@ public class D2Character extends D2ItemListAdapter {
     private byte iBeforeItems[];
     private byte iBetweenItems[];
     private byte iAfterItems[];
+    private VersionController.Variant variant;
 
-    public D2Character(String pFileName) throws Exception {
+    public D2Character(VersionController.Variant expectedVariant, String pFileName) throws Exception {
         super(pFileName);
         if (iFileName == null || !iFileName.toLowerCase().endsWith(".d2s"))
             throw new Exception("Incorrect Character file name");
         iCharItems = new ArrayList();
         iMercItems = new ArrayList();
-        setTracker = new int[D2TxtFile.FULLSET.getRowSize()][2];
         iReader = new D2BitReader(iFileName);
-        readChar();
+        readChar(expectedVariant);
         // clear status
         setModified(false);
     }
 
-    private void readChar() throws Exception {
+    private void readChar(VersionController.Variant expectedVariant) throws Exception {
         iReader.set_byte_pos(4);
         long lVersion = iReader.read(32);
 //        System.err.println("Version: " + lVersion);
-        if (lVersion != 99) throw new Exception("Incorrect Character version: " + lVersion);
+        if (lVersion != D2R3.getFileVersionIdentifier())
+            throw VersionController.VersionException.forVersion(D2R3, VersionController.Version.tryParseFileVersionIdentifier((int) lVersion));
+        iReader.set_byte_pos(248);
+        int variantAsInt = (int) iReader.read(8);
+        VersionController.Variant variantOrNull = tryParseFileVersionIdentifier(variantAsInt);
+        if (variantOrNull != expectedVariant)
+            throw VersionController.VersionException.forVariant(expectedVariant, variantOrNull);
+        this.variant = variantOrNull;
         iReader.set_byte_pos(8);
         long lSize = iReader.read(32);
         if (iReader.get_length() != lSize) throw new Exception("Incorrect FileSize: " + lSize);
@@ -152,22 +165,17 @@ public class D2Character extends D2ItemListAdapter {
         iReader.set_byte_pos(12);
         byte[] checksumFromFile = iReader.get_bytes(4);
         if (!Arrays.equals(calculatedChecksum, checksumFromFile)) throw new Exception("Incorrect Checksum");
-        iReader.set_byte_pos(16);
-//		long lWeaponSet = iReader.read(32);
-        iReader.set_byte_pos(267);
+        iReader.set_byte_pos(299);
         StringBuffer lCharName = new StringBuffer();
         for (int i = 0; i < 16; i++) {
             long lChar = iReader.read(8);
             if (lChar != 0) lCharName.append((char) lChar);
         }
         iCharName = lCharName.toString();
-        iReader.set_byte_pos(36);
+        iReader.set_byte_pos(20);
         iReader.skipBits(2);
         iHC = iReader.read(1) == 1;
-        iReader.set_byte_pos(37);
-//		long lCharTitle = iReader.read(8);
-        iReader.read(8);
-        iReader.set_byte_pos(40);
+        iReader.set_byte_pos(24);
         lCharCode = iReader.read(8);
         switch ((int) lCharCode) {
             case 0:
@@ -191,14 +199,17 @@ public class D2Character extends D2ItemListAdapter {
             case 6:
                 cClass = "ass";
                 break;
+            case 7:
+                cClass = "war";
+                break;
         }
-        iReader.set_byte_pos(43);
+        iReader.set_byte_pos(27);
         iCharLevel = iReader.read(8);
         if (iCharLevel < 1 || iCharLevel > 99)
             throw new Exception("Invalid char level: " + iCharLevel + " (should be between 1-99)");
         iCharClass = D2TxtFile.getCharacterCode((int) lCharCode);
         iTitleString = " Lvl " + iCharLevel + " " + D2TxtFile.getCharacterCode((int) lCharCode);
-        iReader.set_byte_pos(177);
+        iReader.set_byte_pos(161);
         if (iReader.read(8) == 1) ;//MERC IS DEAD?
         iReader.skipBits(8);
         if (iReader.read(32) != 0) {
@@ -217,15 +228,15 @@ public class D2Character extends D2ItemListAdapter {
         }
         lWoo = iReader.findNextFlag("Woo!", 0);
         if (lWoo == -1) throw new Exception("Error: Act Quests block not found");
-        if (lWoo != 335) System.err.println("Warning: Act Quests block not on expected position");
+        if (lWoo != 403) System.err.println("Warning: Act Quests block not on expected position");
         iWS = iReader.findNextFlag("WS", lWoo);
         if (iWS == -1) throw new Exception("Error: Waypoints not found");
         int lW4 = iReader.findNextFlag("w4", lWoo);
         if (lW4 == -1) throw new Exception("Error: NPC State control block not found");
-        if (lW4 != 714) System.err.println("Warning: NPC State control block not on expected position");
+        if (lW4 != 782) System.err.println("Warning: NPC State control block not on expected position");
         iGF = iReader.findNextFlag("gf", lW4);
         if (iGF == -1) throw new Exception("Error: Stats block not found");
-        if (iGF != 765) System.err.println("Warning: Stats block not on expected position");
+        if (iGF != 833) System.err.println("Warning: Stats block not on expected position");
         iIF = iReader.findNextFlag("if", iGF);
         if (iIF == -1) throw new Exception("Error: Skills block not found");
         iJF = iReader.findNextFlag("jf", iIF);
@@ -484,7 +495,7 @@ public class D2Character extends D2ItemListAdapter {
         skillReader.getCounterInt(8);
         int tree = 0;
         for (int x = 0; x < 30; x = x + 1) {
-            tree = Integer.parseInt((D2TxtFile.SKILL_DESC.searchColumns("skilldesc", D2TxtFile.SKILLS.getRow(initRow.getRowNum() + x).get("skilldesc"))).get("SkillPage"));
+            tree = Integer.parseInt((getSkillDescRow(D2TxtFile.SKILLS.getRow(initRow.getRowNum() + x).get("skilldesc"))).get("SkillPage"));
             initSkills[tree - 1][skillC[tree - 1]] = skillReader.getCounterInt(8);
             skillC[tree - 1]++;
         }
@@ -640,12 +651,13 @@ public class D2Character extends D2ItemListAdapter {
                     break;
                 case (97):
                     if (!D2TxtFile.SKILLS.getRow(pVals[0]).get("charclass").equals(cClass)) continue;
-                    String page = D2TxtFile.SKILL_DESC.getRow(pVals[0]).get("SkillPage");
+                    String page = getSkillDescRowForId(pVals[0]).get("SkillPage");
                     if (page.equals("") || Integer.parseInt(page) <= 0) continue; //TODO: Fix skills issues for assasins
                     int counter = 0;
                     for (int z = pVals[0]; z > -1; z = z - 1) {
-                        if (D2TxtFile.SKILLS.getRow(z).get("charclass").equals(cClass)) {
-                            if (D2TxtFile.SKILL_DESC.getRow(z).get("SkillPage").equals(page)) {
+                        D2TxtFileItemProperties skillsRowForId = getSkillsRowForId(z);
+                        if (skillsRowForId.get("charclass").equals(cClass)) {
+                            if (getSkillDescRow(skillsRowForId.get("skilldesc")).get("SkillPage").equals(page)) {
                                 counter++;
                             }
                         }
@@ -654,13 +666,16 @@ public class D2Character extends D2ItemListAdapter {
                     break;
 
                 case (107):
-                    if (!D2TxtFile.SKILLS.getRow(pVals[0]).get("charclass").equals(cClass)) continue;
-                    page = D2TxtFile.SKILL_DESC.getRow(pVals[0]).get("SkillPage");
+                    D2TxtFileItemProperties skillsRowForId = getSkillsRowForId(pVals[0]);
+                    if (!skillsRowForId.get("charclass").equals(cClass)) continue;
+                    page = getSkillDescRow(skillsRowForId.get("skilldesc")).get("SkillPage");
                     if (page.equals("") || Integer.parseInt(page) <= 0) continue;
                     counter = 0;
                     for (int z = pVals[0]; z > -1; z = z - 1) {
-                        if (D2TxtFile.SKILLS.getRow(z).get("charclass").equals(cClass)) {
-                            if (D2TxtFile.SKILL_DESC.getRow(z).get("SkillPage").equals(page)) {
+                        D2TxtFileItemProperties skillsRowForIdz = getSkillsRowForId(z);
+                        if (skillsRowForIdz.get("charclass").equals(cClass)) {
+                            String skillDesc = skillsRowForIdz.get("skilldesc");
+                            if (getSkillDescRow(skillDesc).get("SkillPage").equals(page)) {
                                 counter++;
                             }
                         }
@@ -753,7 +768,7 @@ public class D2Character extends D2ItemListAdapter {
             return 20;
         } else if (getCharClass().equals("Assasin")) {
             return 15;
-        } else if (getCharClass().equals("Amazon") || getCharClass().equals("Druid")) {
+        } else if (getCharClass().equals("Amazon") || getCharClass().equals("Druid") || getCharClass().equals("Warlock")) {
             return 5;
         } else if (getCharClass().equals("Necromancer")) {
             return -10;
@@ -817,12 +832,12 @@ public class D2Character extends D2ItemListAdapter {
                 int location = (int) i.get_location();
                 if (location == 2) {
                     col = (int) i.get_col();
-                    row = col / BELTSIZEX;
-                    col = col % BELTSIZEX;
+                    row = col / 4;
+                    col = col % 4;
                     width = (int) i.get_width();
                     height = (int) i.get_height();
-                    if ((row + height) > BELTSIZEY) return false;
-                    if ((col + width) > BELTSIZEX) return false;
+                    if ((row + height) > 4) return false;
+                    if ((col + width) > 4) return false;
                     for (j = row; j < row + height; j++) {
                         for (k = col; k < col + width; k++) iBeltGrid[j][k] = true;
                     }
@@ -842,8 +857,8 @@ public class D2Character extends D2ItemListAdapter {
                 col = (int) i.get_col();
                 width = (int) i.get_width();
                 height = (int) i.get_height();
-                if ((row + height) > INVSIZEY) return false;
-                if ((col + width) > INVSIZEX) return false;
+                if ((row + height) > 4) return false;
+                if ((col + width) > 10) return false;
                 for (j = row; j < row + height; j++) {
                     for (k = col; k < col + width; k++) iInventoryGrid[j][k] = true;
                 }
@@ -853,8 +868,8 @@ public class D2Character extends D2ItemListAdapter {
                 col = (int) i.get_col();
                 width = (int) i.get_width();
                 height = (int) i.get_height();
-                if ((row + height) > CUBESIZEY) return false;
-                if ((col + width) > CUBESIZEX) return false;
+                if ((row + height) > 4) return false;
+                if ((col + width) > 3) return false;
                 for (j = row; j < row + height; j++) {
                     for (k = col; k < col + width; k++) iCubeGrid[j][k] = true;
                 }
@@ -864,8 +879,8 @@ public class D2Character extends D2ItemListAdapter {
                 col = (int) i.get_col();
                 width = (int) i.get_width();
                 height = (int) i.get_height();
-                if ((row + height) > STASHSIZEY) return false;
-                if ((col + width) > STASHSIZEX) return false;
+                if ((row + height) > 10) return false;
+                if ((col + width) > 10) return false;
                 for (j = row; j < row + height; j++) {
                     for (k = col; k < col + width; k++) iStashGrid[j][k] = true;
                 }
@@ -910,8 +925,8 @@ public class D2Character extends D2ItemListAdapter {
 
     public ArrayList getBeltPotions() {
         ArrayList lList = new ArrayList();
-        for (int i = 0; i < BELTSIZEY; i++) {
-            for (int j = 1; j < BELTSIZEX; j++) {
+        for (int i = 0; i < 4; i++) {
+            for (int j = 1; j < 4; j++) {
                 int y = getCharItemIndex(2, i, j);
                 if (y != -1) lList.add((D2Item) iCharItems.get(y));
             }
@@ -928,12 +943,12 @@ public class D2Character extends D2ItemListAdapter {
                 // on the belt
                 if (location == 2) {
                     col = (int) i.get_col();
-                    row = col / BELTSIZEX;
-                    col = col % BELTSIZEX;
+                    row = col / 4;
+                    col = col % 4;
                     width = (int) i.get_width();
                     height = (int) i.get_height();
-                    if ((row + height) > BELTSIZEY) return false;
-                    if ((col + width) > BELTSIZEX) return false;
+                    if ((row + height) > 4) return false;
+                    if ((col + width) > 4) return false;
                     for (j = row; j < row + height; j++) {
                         for (k = col; k < col + width; k++) iBeltGrid[j][k] = false;
                     }
@@ -949,8 +964,8 @@ public class D2Character extends D2ItemListAdapter {
                 col = (int) i.get_col();
                 width = (int) i.get_width();
                 height = (int) i.get_height();
-                if ((row + height) > INVSIZEY) return false;
-                if ((col + width) > INVSIZEX) return false;
+                if ((row + height) > 4) return false;
+                if ((col + width) > 10) return false;
                 for (j = row; j < row + height; j++) {
                     for (k = col; k < col + width; k++) iInventoryGrid[j][k] = false;
                 }
@@ -960,8 +975,8 @@ public class D2Character extends D2ItemListAdapter {
                 col = (int) i.get_col();
                 width = (int) i.get_width();
                 height = (int) i.get_height();
-                if ((row + height) > CUBESIZEY) return false;
-                if ((col + width) > CUBESIZEX) return false;
+                if ((row + height) > 4) return false;
+                if ((col + width) > 3) return false;
                 for (j = row; j < row + height; j++) {
                     for (k = col; k < col + width; k++) iCubeGrid[j][k] = false;
                 }
@@ -971,8 +986,8 @@ public class D2Character extends D2ItemListAdapter {
                 col = (int) i.get_col();
                 width = (int) i.get_width();
                 height = (int) i.get_height();
-                if ((row + height) > STASHSIZEY) return false;
-                if ((col + width) > STASHSIZEX) return false;
+                if ((row + height) > 10) return false;
+                if ((col + width) > 10) return false;
                 for (j = row; j < row + height; j++) {
                     for (k = col; k < col + width; k++)
                         iStashGrid[j][k] = false;
@@ -1209,24 +1224,6 @@ public class D2Character extends D2ItemListAdapter {
                 case BODY_RARM:
                     if (pItem.isBodyLocation(D2BodyLocations.BODY_RARM)) return false;
                     break;
-                case BODY_GLOVES:
-                    if (pItem.isBodyLocation(D2BodyLocations.BODY_GLOV)) return false;
-                    break;
-                case BODY_BOOTS:
-                    if (pItem.isBodyLocation(D2BodyLocations.BODY_FEET)) return false;
-                    break;
-                case BODY_BELT:
-                    if (pItem.isBodyLocation(D2BodyLocations.BODY_BELT)) return false;
-                    break;
-                case BODY_NECK:
-                    if (pItem.isBodyLocation(D2BodyLocations.BODY_NECK)) return false;
-                    break;
-                case BODY_LRING:
-                    if (pItem.isBodyLocation(D2BodyLocations.BODY_LRIN)) return false;
-                    break;
-                case BODY_RRING:
-                    if (pItem.isBodyRRin()) return false;
-                    break;
             }
             return true;
         }
@@ -1424,18 +1421,14 @@ public class D2Character extends D2ItemListAdapter {
         int[] skillCounter = new int[3];
 
         for (int x = 0; x < skillArr.size(); x = x + 1) {
-
             try {
-                int page = Integer.parseInt((D2TxtFile.SKILL_DESC.getRow(Integer.parseInt(((D2TxtFileItemProperties) skillArr.get(x)).get("*Id")))).get("SkillPage"));
+                D2TxtFileItemProperties skillDescRow = getSkillDescRow(((D2TxtFileItemProperties) skillArr.get(x)).get("skilldesc"));
+                int page = Integer.parseInt(skillDescRow.get("SkillPage"));
                 if (page == 0) continue;
                 skillTrees[page - 1] = skillTrees[page - 1]
                         + D2Files.getInstance()
-                                .getTranslations()
-                                .getTranslation(D2TxtFile.SKILL_DESC
-                                        .searchColumns(
-                                                "skilldesc",
-                                                ((D2TxtFileItemProperties) skillArr.get(x)).get("skilldesc"))
-                                        .get("str name"))
+                        .getTranslations()
+                        .getTranslation(skillDescRow.get("str name"))
                         + ": " + initSkills[page - 1][skillCounter[page - 1]] + "/"
                         + cSkills[page - 1][skillCounter[page - 1]] + "\n";
                 skillCounter[page - 1]++;
@@ -1495,11 +1488,11 @@ public class D2Character extends D2ItemListAdapter {
 
     private void addSetItem(D2Item item) {
         int setNo = D2TxtFile.FULLSET.searchColumns("index", D2TxtFile.SETITEMS.searchColumns("*ID", String.valueOf(item.getSetID())).get("set")).getRowNum();
-        setTracker[setNo][0]++;
+        setTracker.computeIfAbsent(setNo, k -> new int[1])[0]++;
         for (int x = 0; x < iCharItems.size(); x++) {
             if (!((D2Item) iCharItems.get(x)).isEquipped(curWep)) continue;
             if (D2TxtFile.FULLSET.searchColumns("index", D2TxtFile.SETITEMS.searchColumns("*ID", String.valueOf(((D2Item) (iCharItems.get(x))).getSetID())).get("set")).getRowNum() == setNo) {
-                modSetProps(((D2Item) iCharItems.get(x)), setTracker[setNo], 1);
+                modSetProps(((D2Item) iCharItems.get(x)), setTracker.get(setNo), 1);
             }
         }
     }
@@ -1546,10 +1539,10 @@ public class D2Character extends D2ItemListAdapter {
         for (int x = 0; x < iCharItems.size(); x++) {
             if (!((D2Item) iCharItems.get(x)).isEquipped(curWep)) continue;
             if (D2TxtFile.FULLSET.searchColumns("index", D2TxtFile.SETITEMS.searchColumns("*ID", String.valueOf(((D2Item) (iCharItems.get(x))).getSetID())).get("set")).getRowNum() == setNo) {
-                modSetProps(((D2Item) iCharItems.get(x)), setTracker[setNo], -1);
+                modSetProps(((D2Item) iCharItems.get(x)), setTracker.get(setNo), -1);
             }
         }
-        setTracker[setNo][0]--;
+        setTracker.computeIfAbsent(setNo, k -> new int[1])[0]--;
     }
 
     public void updateMercStats(String string, D2Item dropItem) {
@@ -1984,6 +1977,8 @@ public class D2Character extends D2ItemListAdapter {
         return
                 "Name:       " + getCharName() + "\n" +
                         "Class:      " + getCharClass() + "\n" +
+                        "Hardcore:   " + isHC() + "\n" +
+                        "Variant :   " + variant.getHumanName() + "\n" +
                         "Experience: " + getCharExp() + "\n" +
                         "Level:      " + getCharLevel() + "\n" +
                         /*"NOTIMP:     " + getCharDead() + "\n"+*/ "\n" + "            Naked/Gear" + "\n" +
@@ -1996,10 +1991,10 @@ public class D2Character extends D2ItemListAdapter {
                         "Stamina:    " + getCharInitStam() + "/" + getCharStam() + "\n" +
                         "Defense:    " + getCharInitDef() + "/" + getCharDef() + "\n" +
                         "AR:         " + getCharInitAR() + "/" + getCharAR() + "\n" + "\n" +
-                        "Fire:       " + getCharFireRes() + "/" + (getCharFireRes() - 40) + "/" + (getCharFireRes() - 120) + "\n" +
-                        "Cold:       " + getCharColdRes() + "/" + (getCharColdRes() - 40) + "/" + (getCharColdRes() - 120) + "\n" +
-                        "Lightning:  " + getCharLightRes() + "/" + (getCharLightRes() - 40) + "/" + (getCharLightRes() - 120) + "\n" +
-                        "Poison:     " + getCharPoisRes() + "/" + (getCharPoisRes() - 40) + "/" + (getCharPoisRes() - 120) + "\n" + "\n" +
+                        "Fire:       " + getCharFireRes() + "/" + (getCharFireRes() - 40) + "/" + (getCharFireRes() - 100) + "\n" +
+                        "Cold:       " + getCharColdRes() + "/" + (getCharColdRes() - 40) + "/" + (getCharColdRes() - 100) + "\n" +
+                        "Lightning:  " + getCharLightRes() + "/" + (getCharLightRes() - 40) + "/" + (getCharLightRes() - 100) + "\n" +
+                        "Poison:     " + getCharPoisRes() + "/" + (getCharPoisRes() - 40) + "/" + (getCharPoisRes() - 100) + "\n" + "\n" +
                         "MF:         " + getCharMF() + "       Block:      " + getCharBlock() + "\n" +
                         "GF:         " + getCharGF() + "       FR/W:       " + getCharFRW() + "\n" +
                         "FHR:        " + getCharFHR() + "       IAS:        " + getCharIAS() + "\n" +
@@ -2020,10 +2015,10 @@ public class D2Character extends D2ItemListAdapter {
                     "HP:         " + getMercInitHP() + "/" + getMercHP() + "\n" +
                     "Defense:    " + getMercInitDef() + "/" + getMercDef() + "\n" +
                     "AR:         " + getMercInitAR() + "/" + getMercAR() + "\n" + "\n" +
-                    "Fire:       " + getMercFireRes() + "/" + (getMercFireRes() - 40) + "/" + (getMercFireRes() - 120) + "\n" +
-                    "Cold:       " + getMercColdRes() + "/" + (getMercColdRes() - 40) + "/" + (getMercColdRes() - 120) + "\n" +
-                    "Lightning:  " + getMercLightRes() + "/" + (getMercLightRes() - 40) + "/" + (getMercLightRes() - 120) + "\n" +
-                    "Poison:     " + getMercPoisRes() + "/" + (getMercPoisRes() - 40) + "/" + (getMercPoisRes() - 120);
+                    "Fire:       " + getMercFireRes() + "/" + (getMercFireRes() - 40) + "/" + (getMercFireRes() - 100) + "\n" +
+                    "Cold:       " + getMercColdRes() + "/" + (getMercColdRes() - 40) + "/" + (getMercColdRes() - 100) + "\n" +
+                    "Lightning:  " + getMercLightRes() + "/" + (getMercLightRes() - 40) + "/" + (getMercLightRes() - 100) + "\n" +
+                    "Poison:     " + getMercPoisRes() + "/" + (getMercPoisRes() - 40) + "/" + (getMercPoisRes() - 100);
         } else {
             return "";
         }

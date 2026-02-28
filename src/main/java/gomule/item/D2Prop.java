@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
+import static gomule.skills.SkillsHelpers.getSkillsRowForId;
 import static java.util.Collections.singletonList;
 
 public class D2Prop {
@@ -159,14 +160,8 @@ public class D2Prop {
             //leave dispLoc as  = 1
         }
 
-        // Reimagined Fix:
-        if (pNum == 97) { // OSkill
-            funcN = 28;
-        }
-        else if (pNum == 387) { // OSkill display
-            funcN = -1;
-        }
-        else if (pNum == 73) { //Max Durability
+        //Max Durability
+        if (pNum == 73) {
             oString = "Maximum Durability";
             funcN = 1;
         } else if (pNum == 92) {
@@ -348,10 +343,6 @@ public class D2Prop {
                 return "+" + pVals[1] + " to " + getSkillTree(pVals[0]);
 
             case (15):
-                // TODO: Error in reimagined, remove when fixed
-                if (dispLoc == 0)
-                    return oString;
-                // -----
 
                 oString = oString.replaceFirst("%d%", Integer.toString(pVals[2]));
                 oString = oString.replaceAll("%d", Integer.toString(pVals[0]));
@@ -402,14 +393,14 @@ public class D2Prop {
                 if (matchingPropsRecords.isEmpty()) {
                     if (oString.equals("Indestructible")) {
                         matchingPropsRecords = singletonList(D2TxtFile.PROPS.searchColumns("code", "indestruct"));
-                    } else if (oString.equals("%+d%% Enhanced Maximum Weapon Damage")) {
+                    } else if (oString.equals("%+d%% Enhanced Maximum Damage")) {
                         matchingPropsRecords = singletonList(D2TxtFile.PROPS.searchColumns("code", "dmg%"));
-                    } else if (oString.equals("%+d to Maximum Weapon Damage")) {
+                    } else if (oString.equals("%+d to Maximum Damage")) {
                         matchingPropsRecords = singletonList(D2TxtFile.PROPS.searchColumns("code", "dmg-max"));
-                    } else if (oString.equals("%+d to Minimum Weapon Damage")) {
+                    } else if (oString.equals("%+d to Minimum Damage")) {
                         matchingPropsRecords = singletonList(D2TxtFile.PROPS.searchColumns("code", "dmg-min"));
                     } else {
-                        return oString.replaceAll("%\\+d", "+" + Integer.toString(pVals[1]));
+                        return "Unknown property";
                     }
                 }
                 D2TxtFileItemProperties o = matchingPropsRecords.get(0);
@@ -443,9 +434,9 @@ public class D2Prop {
             case (23):
                 return pVals[1] + "% " + oString + " "
                         + D2Files.getInstance()
-                                .getTranslations()
-                                .getTranslation(
-                                        D2TxtFile.MONSTATS.getRow(pVals[0]).get("NameStr"));
+                        .getTranslations()
+                        .getTranslation(
+                                D2TxtFile.MONSTATS.getRow(pVals[0]).get("NameStr"));
 
             case (24):
 
@@ -453,57 +444,49 @@ public class D2Prop {
                 oString = oString.replaceAll("%d", Integer.toString(pVals[3]));
                 return "Level " + pVals[0] + " "
                         + D2Files.getInstance()
-                                .getTranslations()
-                                .getTranslation(D2TxtFile.SKILL_DESC
-                                        .searchColumns(
-                                                "skilldesc",
-                                                D2TxtFile.SKILLS
-                                                        .getRow(pVals[1])
-                                                        .get("skilldesc"))
-                                        .get("str name"))
+                        .getTranslations()
+                        .getTranslation(D2TxtFile.SKILL_DESC
+                                .searchColumns(
+                                        "skilldesc",
+                                        D2TxtFile.SKILLS
+                                                .getRow(pVals[1])
+                                                .get("skilldesc"))
+                                .get("str name"))
                         + " " + oString;
 
             case (27):
                 return "+" + pVals[1] + " to "
                         + D2Files.getInstance()
-                                .getTranslations()
-                                .getTranslation(D2TxtFile.SKILL_DESC
-                                        .searchColumns(
-                                                "skilldesc",
-                                                D2TxtFile.SKILLS
-                                                        .getRow(pVals[0])
-                                                        .get("skilldesc"))
-                                        .get("str name"))
+                        .getTranslations()
+                        .getTranslation(D2TxtFile.SKILL_DESC
+                                .searchColumns(
+                                        "skilldesc",
+                                        D2TxtFile.SKILLS
+                                                .getRow(pVals[0])
+                                                .get("skilldesc"))
+                                .get("str name"))
                         + " "
                         + D2Files.getInstance()
-                                .getTranslations()
-                                .getTranslation((D2TxtFile.SKILLS
-                                                                .getRow(D2TxtFile.SKILL_DESC
-                                                                        .getRow(pVals[0])
-                                                                        .getRowNum())
-                                                                .get("charclass")
-                                                                .charAt(0)
-                                                        + "")
-                                                .toUpperCase()
-                                        + D2TxtFile.SKILLS
-                                                .getRow(D2TxtFile.SKILL_DESC
-                                                        .getRow(pVals[0])
-                                                        .getRowNum())
-                                                .get("charclass")
-                                                .substring(1)
-                                        + "Only");
+                        .getTranslations()
+                        .getTranslation((getSkillsRowForId(pVals[0]).get("charclass").charAt(0)
+                                + "")
+                                .toUpperCase()
+                                + getSkillsRowForId(pVals[0])
+                                .get("charclass")
+                                .substring(1)
+                                + "Only");
 
             case (28):
-                if (pVals[0] < D2TxtFile.SKILLS.getRowSize()) {
-                    return "+" + pVals[1] + " to "
-                            + D2Files.getInstance()
-                            .getTranslations()
-                            .getTranslation(D2TxtFile.SKILL_DESC
-                                    .searchColumns("skilldesc", D2TxtFile.SKILLS.getRow(pVals[0]).get("skilldesc"))
-                                    .get("str name"));
-                }
-                else
-                    return  "+" + pVals[1] + " to Unknown Skill";
+                return "+" + pVals[1] + " to "
+                        + D2Files.getInstance()
+                        .getTranslations()
+                        .getTranslation(D2TxtFile.SKILL_DESC
+                                .searchColumns(
+                                        "skilldesc",
+                                        D2TxtFile.SKILLS
+                                                .getRow(pVals[0])
+                                                .get("skilldesc"))
+                                .get("str name"));
 
             //UNOFFICIAL PROPERTIES
 
@@ -579,7 +562,7 @@ public class D2Prop {
                 }
         }
 
-        return "";// "Unrecognized property: " + this.pNum;
+        return "Unrecognized property: " + this.pNum;
     }
 
     public void applyOp(int cLvl) {
@@ -668,6 +651,15 @@ public class D2Prop {
 
             case 50:
                 return "Martial Art Skills (Assassin Only)";
+
+            case 56:
+                return "Demon Skills (Warlock Only)";
+
+            case 57:
+                return "Eldritch Skills (Warlock Only)";
+
+            case 58:
+                return "Chaos Skills (Warlock Only)";
 
         }
         return "Unknown Tree (P 188)";

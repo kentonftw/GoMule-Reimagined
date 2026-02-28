@@ -20,6 +20,8 @@
  ******************************************************************************/
 package randall.flavie;
 
+import gomule.model.VersionController;
+import gomule.util.AppPaths;
 import randall.d2files.D2TxtFile;
 import randall.d2files.D2TxtFileItemProperties;
 import randall.flavie.filters.FlavieDupeFilter;
@@ -56,16 +58,18 @@ public class Flavie {
     private String iReportName;
     //    private String iReportTitle;
     private String iDataFile;
+    private final VersionController.Variant variant;
     //	protected HashMap iAllItems = new HashMap();
     private ArrayList iDatFile = new ArrayList();
     private DataFileBuilder iDataFileBuilder;
     private DirectD2Files iDirectD2;
     private ReportBuilder iReportBuilder;
 
-    public Flavie(String pReportName, String pReportTitle, String pDataFile, String pStyleFile, ArrayList pFileNames, boolean pCountAll, boolean pCountEthereal, boolean pCountStash, boolean pCountChar) throws Exception {
+    public Flavie(String pReportName, String pReportTitle, String pDataFile, String pStyleFile, ArrayList pFileNames, boolean pCountAll, boolean pCountEthereal, boolean pCountStash, boolean pCountChar, VersionController.Variant variant) throws Exception {
         iReportName = pReportName;
 //        iReportTitle = pReportTitle;
         iDataFile = pDataFile;
+        this.variant = variant;
 //        iStyleFile = pStyleFile;
 
         iReportBuilder = new ReportBuilder(this);
@@ -75,7 +79,7 @@ public class Flavie {
         ArrayList lDataFileObjects = iDataFileBuilder.readDataFileObjects(iDataFile, iDatFile);
         iDirectD2.readDirectD2Files(lDataFileObjects, pFileNames);
 
-        File lDupeDirList = new File("dupelists");
+        File lDupeDirList = new File(AppPaths.getBaseDir(), "dupelists");
         File lDupeFiles[] = lDupeDirList.listFiles();
 
         for (int i = 0; i < lDupeFiles.length; i++) {
@@ -155,4 +159,7 @@ public class Flavie {
     }
 
 
+    public VersionController.Variant getVariant() {
+        return variant;
+    }
 }

@@ -9,6 +9,8 @@ import javax.swing.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
+import static gomule.gui.sharedStash.SharedStashPanel.*;
+
 class SharedStashPanelMouseClickHandler extends MouseAdapter {
 
     private final SharedStashPanel sharedStashPanel;
@@ -28,7 +30,7 @@ class SharedStashPanelMouseClickHandler extends MouseAdapter {
         if (sharedStash == null) return;
         int col = SharedStashPanel.getColForXCoord(e.getX());
         int row = SharedStashPanel.getRowForYCoord(e.getY());
-        if (col < 0 || row < 0 || col > 15 || row > 12) return;
+        if (col < 0 || row < 0 || col > 9 || row > 9) return;
         D2SharedStash.D2SharedStashPane stashPane = sharedStashPanel.getSelectedStashPane();
         D2Item item = stashPane.getItemCovering(col, row);
         if (item != null) {
@@ -43,13 +45,12 @@ class SharedStashPanelMouseClickHandler extends MouseAdapter {
     private void handleLeftClick(MouseEvent e) {
         D2SharedStash sharedStash = sharedStashPanel.getSharedStash();
         if (sharedStash == null) return;
-        Integer possibleStashTabClick = getPossibleStashTabClick(e.getX(), e.getY());
-        setStashTab(possibleStashTabClick);
-        if (isClickOnGoldButton(e.getX(), e.getY())) showGoldDialog();
+        handleStashNavigationClicks(e.getX(), e.getY());
+        if (isInGoldArea(e.getX(), e.getY())) showGoldDialog();
 
         int col = SharedStashPanel.getColForXCoord(e.getX());
         int row = SharedStashPanel.getRowForYCoord(e.getY());
-        if (col < 0 || row < 0 || col > 15 || row > 12) return;
+        if (col < 0 || row < 0 || col > 9 || row > 9) return;
         D2SharedStash.D2SharedStashPane stashPane = sharedStashPanel.getSelectedStashPane();
         D2Item item = stashPane.getItemCovering(col, row);
         if (item != null) {
@@ -57,10 +58,6 @@ class SharedStashPanelMouseClickHandler extends MouseAdapter {
         } else if (D2ViewClipboard.getItem() != null) {
             tryMoveItemFromClipboard(stashPane, col, row);
         }
-    }
-
-    private boolean isClickOnGoldButton(int x, int y) {
-        return x >= 222 && x <= 243 && y >= 500 && y <= 522;
     }
 
     private void showGoldDialog() {
@@ -92,25 +89,8 @@ class SharedStashPanelMouseClickHandler extends MouseAdapter {
         sharedStashPanel.setCursorDropItem();
     }
 
-    private void setStashTab(Integer possibleStashTabClick) {
-        if (possibleStashTabClick == null) return;
-        if (sharedStashPanel.getSelectedStashPaneIndex() == possibleStashTabClick) return;
-        sharedStashPanel.setSelectedStashPaneIndex(possibleStashTabClick);
-        sharedStashPanel.build();
-    }
-
-    private Integer getPossibleStashTabClick(int x, int y) {
-        int paneCount = this.sharedStashPanel.getSharedStash().getPanes().size();
-
-        if (x >= 27 && x <= 462 && y >= 51 && y <= 72) {
-            if ((x <= 87) && (paneCount >= 1)) return 0;
-            if ((x <= 150) && (paneCount >= 2)) return 1;
-            if ((x <= 212) && (paneCount >= 3)) return 2;
-            if ((x <= 275) && (paneCount >= 4)) return 3;
-            if ((x <= 337) && (paneCount >= 5)) return 4;
-            if ((x <= 400) && (paneCount >= 6)) return 5;
-            if (paneCount >= 7) return 6;
-        }
-        return null;
+    private void handleStashNavigationClicks(int x, int y) {
+        if (isInRightStashSelectArea(x, y)) sharedStashPanel.moveToNextStashPane();
+        if (isInLeftStashSelectArea(x, y)) sharedStashPanel.moveToPriorStashPane();
     }
 }

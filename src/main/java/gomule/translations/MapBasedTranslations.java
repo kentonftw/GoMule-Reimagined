@@ -1,48 +1,51 @@
 package gomule.translations;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.eclipsesource.json.Json;
+import com.eclipsesource.json.JsonObject;
+import com.eclipsesource.json.JsonValue;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.io.CharStreams;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
+import java.io.InputStreamReader;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 public class MapBasedTranslations implements Translations {
     private final Map<String, String> translationData;
-    private static final JsonMapper MAPPER = new JsonMapper();
 
     public MapBasedTranslations(Map<String, String> translationData) {
         this.translationData = translationData;
     }
 
     public static Translations loadTranslations(InputStream inputStream) {
-        try {
-
-            JsonNode jsonList = MAPPER.readTree(inputStream);
-            Map<String, String> tmpMap = new HashMap<>(jsonList.size());
-            jsonList.forEach(node -> {
-                if (tmpMap.containsKey(node.get("Key").textValue()))
-                    tmpMap.replace(node.get("Key").textValue(), node.get("enUS").textValue());
-                else
-                    tmpMap.put(node.get("Key").textValue(), node.get("enUS").textValue());
-            });
-
-            return new MapBasedTranslations(ImmutableMap.copyOf(tmpMap));
+        try (InputStreamReader reader = new InputStreamReader(inputStream, UTF_8)) {
+            ImmutableMap.Builder<String, String> mapBuilder = ImmutableMap.builder();
+            String content = CharStreams.toString(reader).replace("\uFEFF", "").trim();
+            for (JsonValue value : Json.parse(content).asArray()) {
+                JsonObject node = value.asObject();
+                int id = node.getInt("id", -1);
+                if (id == 27893 || id == 27502 || id == 27542 || id == 28085) {
+                    continue;
+                }
+                String key = node.getString("Key", null);
+                String valueStr = node.getString("enUS", "");
+                if (key != null) {
+                    mapBuilder.put(key, valueStr);
+                }
+            }
+            return new MapBasedTranslations(mapBuilder.build());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
     @Override
-    public String getTranslationOrNull(String key, String name) {
-        String translation = translationData.get(key);
-        if ((translation == null) && (name != null)) {
-            translation = translationData.get(name);
-        }
-        return translation;
+    public String getTranslationOrNull(String key) {
+        return translationData.get(key);
     }
 
     @Override

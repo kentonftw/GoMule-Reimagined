@@ -10,13 +10,13 @@ import java.io.IOException;
 import java.util.Properties;
 
 public class FileManagerProperties {
-    public static File getFileManagerPropertiesFile() throws IOException {
-        File lProjectsDir = new File(D2Project.PROJECTS_DIR);
+    private static File getFileManagerPropertiesFile() throws IOException {
+        File lProjectsDir = D2Project.getProjectsRootDir();
         if (!lProjectsDir.exists()) {
             lProjectsDir.mkdir();
         }
 
-        File lProps = new File(D2Project.PROJECTS_DIR + File.separator + "projects.properties");
+        File lProps = new File(lProjectsDir, "projects.properties");
         if (!lProps.exists()) {
             lProps.createNewFile();
         }
@@ -24,13 +24,15 @@ public class FileManagerProperties {
     }
 
     @SuppressWarnings("UnstableApiUsage")
-    public static Properties loadFileManagerProperties() throws IOException {
+    public static Properties loadFileManagerProperties() {
         FileInputStream fileInputStream = null;
         try {
             fileInputStream = new FileInputStream(getFileManagerPropertiesFile());
             Properties properties = new Properties();
             properties.load(fileInputStream);
             return properties;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         } finally {
             Closeables.closeQuietly(fileInputStream);
         }

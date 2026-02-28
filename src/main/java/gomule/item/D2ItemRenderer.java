@@ -5,16 +5,12 @@ import java.util.ArrayList;
 
 public class D2ItemRenderer {
 
-    public static String stripColorCodes(String text) {
-        return text.replaceAll("ÿc.", "");
-    }
-
     public static String itemDumpHtml(D2Item d2Item, boolean extended) {
-        return stripColorCodes(generatePropString(d2Item, extended).toString());
+        return generatePropString(d2Item, extended).toString();
     }
 
     public static String itemDump(D2Item d2Item, boolean extended) {
-        return stripColorCodes(htmlStrip(generatePropString(d2Item, extended)));
+        return htmlStrip(generatePropString(d2Item, extended));
     }
 
     private static String htmlStrip(StringBuilder htmlString) {
@@ -29,18 +25,12 @@ public class D2ItemRenderer {
         return propString.append("</html>");
     }
 
-    public static String stripItemName(String itemName) {
-        String result = itemName.replaceAll("\\n.*", "");
-        result = result.replaceAll("\\*", "");
-        return result;
-    }
-
     private static StringBuilder generatePropStringNoHtmlTags(D2Item d2Item, boolean extended) {
         d2Item.getPropCollection().tidy();
         StringBuilder dispStr = new StringBuilder("<center>");
         String base = (Integer.toHexString(Color.white.getRGB())).substring(2);
         String rgb = (Integer.toHexString(d2Item.getItemColor().getRGB())).substring(2);
-        String iItemName = stripItemName(d2Item.getItemName());
+        String iItemName = d2Item.getItemName();
         if (d2Item.getPersonalization() == null) {
             dispStr.append("<font color=\"#")
                     .append(base)
@@ -64,7 +54,7 @@ public class D2ItemRenderer {
                     .append("</font>")
                     .append("<br>&#10;");
         }
-        String iBaseItemName = stripItemName(d2Item.getBaseItemName());
+        String iBaseItemName = d2Item.getBaseItemName();
         ArrayList<D2Item> iSocketedItems = d2Item.getiSocketedItems();
         if (!iBaseItemName.equals(iItemName))
             dispStr.append("<font color=\"#")
@@ -76,7 +66,8 @@ public class D2ItemRenderer {
         if (d2Item.isRuneWord()) {
             dispStr.append("<font color=\"#").append(rgb).append("\">");
             for (D2Item iSocketedItem : iSocketedItems) {
-                dispStr.append(iSocketedItem.getName(), 0, iSocketedItem.getName().indexOf(' '));
+                dispStr.append(
+                        (iSocketedItem.getName()), 0, iSocketedItem.getName().length() - 5);
             }
             dispStr.append("</font><br>&#10;");
         }
@@ -158,6 +149,9 @@ public class D2ItemRenderer {
             dispStr.append("Item Level: ").append(d2Item.getIlvl()).append("<br>&#10;");
         dispStr.append("Version: ").append(d2Item.get_version()).append("<br>&#10;");
         if (!d2Item.isiIdentified()) dispStr.append("Unidentified" + "<br>&#10;");
+        if (d2Item.getItemDifficulty() != null) {
+            dispStr.append("Difficulty: ").append(d2Item.getItemDifficulty()).append("<br>&#10;");
+        }
 
         dispStr.append(getItemPropertyString(d2Item));
 
@@ -227,7 +221,7 @@ public class D2ItemRenderer {
             if (d2Item.getiSocketedItems() != null) {
                 for (int i = 0; i < d2Item.getiSocketedItems().size(); i++) {
                     dispStr.append("Socketed: ")
-                            .append(stripItemName(d2Item.getiSocketedItems().get(i).getItemName()))
+                            .append(d2Item.getiSocketedItems().get(i).getItemName())
                             .append("<br>&#10;");
                 }
             }

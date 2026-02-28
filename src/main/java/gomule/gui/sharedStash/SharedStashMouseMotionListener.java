@@ -8,8 +8,7 @@ import gomule.item.D2ItemRenderer;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 
-import static gomule.gui.sharedStash.SharedStashPanel.getColForXCoord;
-import static gomule.gui.sharedStash.SharedStashPanel.getRowForYCoord;
+import static gomule.gui.sharedStash.SharedStashPanel.*;
 
 class SharedStashMouseMotionListener extends MouseMotionAdapter {
     private final SharedStashPanel sharedStashPanel;
@@ -18,21 +17,16 @@ class SharedStashMouseMotionListener extends MouseMotionAdapter {
         this.sharedStashPanel = sharedStashPanel;
     }
 
-    private boolean isOnGoldButton(int x, int y) {
-        return x >= 222 && x <= 243 && y >= 500 && y <= 522;
-    }
-
     @Override
     public void mouseMoved(MouseEvent e) {
-        if (isOnGoldButton(e.getX(), e.getY())) {
-            sharedStashPanel.setCursorPickupItem();
-            return;
-        }
-
         int col = getColForXCoord(e.getX());
         int row = getRowForYCoord(e.getY());
-        if (col < 0 || row < 0 || col > 15 || row > 12) {
-            sharedStashPanel.setCursorNormal();
+        if (col < 0 || row < 0 || col > 9 || row > 9) {
+            if (isInGoldArea(e.getX(), e.getY()) || isInLeftStashSelectArea(e.getX(), e.getY()) || isInRightStashSelectArea(e.getX(), e.getY())) {
+                sharedStashPanel.setCursorPickupItem();
+            } else {
+                sharedStashPanel.setCursorNormal();
+            }
             return;
         }
         D2SharedStash.D2SharedStashPane stashPane = sharedStashPanel.getSelectedStashPane();

@@ -21,7 +21,6 @@
 
 package gomule.item;
 
-import com.google.common.primitives.Ints;
 import gomule.D2Files;
 import gomule.util.D2BitReader;
 import gomule.util.D2ItemException;
@@ -34,6 +33,8 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static gomule.skills.SkillsHelpers.getSkillsRowForId;
 
 //an item class
 //manages one item
@@ -153,6 +154,10 @@ public class D2Item implements Comparable, D2ItemInterface {
 
     private final HuffmanLookupTable huffmanLookupTable = HuffmanLookupTable.withStandardDictionary();
 
+    private int materialStashStackSize = 0;
+    private final int endOfItemInBytes;
+    private String itemDifficulty;
+
     public D2Item(String pFileName, D2BitReader pFile, long pCharLvl)
             throws Exception {
         iFileName = pFileName;
@@ -163,6 +168,7 @@ public class D2Item implements Comparable, D2ItemInterface {
             int startOfItemInBytes = pFile.get_byte_pos();
             read_item(pFile);
             int endOfItemInBytes = pFile.getNextByteBoundaryInBits() / 8;
+            this.endOfItemInBytes = endOfItemInBytes;
             int lLengthToNextJM = endOfItemInBytes - startOfItemInBytes;
             pFile.set_byte_pos(startOfItemInBytes);
             iItem = new D2BitReader(pFile.get_bytes(lLengthToNextJM));
@@ -308,7 +314,7 @@ public class D2Item implements Comparable, D2ItemInterface {
             }
         }
 
-        String lItemName = D2Files.getInstance().getTranslations().getTranslation(item_type, iItemType.get("name"));
+        String lItemName = D2Files.getInstance().getTranslations().getTranslation(item_type);
         if (lItemName != null) {
             iItemName = lItemName;
             iBaseItemName = iItemName;
@@ -328,19 +334,32 @@ public class D2Item implements Comparable, D2ItemInterface {
             }
         }
 
-        long lHasGUID = pFile.read(1);
+        //compact misc quest items
+        if (iTypeMisc && iType.startsWith("ques") && check_flag(22) && isCompactInTxtFiles()) {
+            long questDifficulty = pFile.read(2);
 
-        if (lHasGUID == 1) { // GUID ???
-            if (iType.startsWith("rune") || iType.startsWith("gem")
-                    || iType.startsWith("amu") || iType.startsWith("rin")
-                    || isCharm() || !isTypeMisc()) {
+            if (questDifficulty == 0) {
+                itemDifficulty = "Normal";
+            } else if (questDifficulty == 1) {
+                itemDifficulty = "Nightmare";
+            } else if (questDifficulty == 2) {
+                itemDifficulty = "Hell";
+            }
+        } else {
+            long lHasGUID = pFile.read(1);
 
-                iGUID = "0x" + Integer.toHexString((int) pFile.read(32))
-                        + " 0x" + Integer.toHexString((int) pFile.read(32))
-                        + " 0x" + Integer.toHexString((int) pFile.read(32))
-                        + " 0x" + Integer.toHexString((int) pFile.read(32));
-            } else {
-                pFile.read(3);
+            if (lHasGUID == 1) { // GUID ???
+                if (iType.startsWith("rune") || iType.startsWith("gem")
+                        || iType.startsWith("amu") || iType.startsWith("rin")
+                        || isCharm() || !isTypeMisc()) {
+
+                    iGUID = "0x" + Integer.toHexString((int) pFile.read(32))
+                            + " 0x" + Integer.toHexString((int) pFile.read(32))
+                            + " 0x" + Integer.toHexString((int) pFile.read(32))
+                            + " 0x" + Integer.toHexString((int) pFile.read(32));
+                } else {
+                    pFile.read(3); //skip empty
+                }
             }
         }
 
@@ -361,6 +380,10 @@ public class D2Item implements Comparable, D2ItemInterface {
         if (iType != null && iType2 != null && iType.startsWith("rune")) {
             readPropertiesGems();
             iRune = true;
+        }
+
+        if (check_flag(22)) {
+            readMaterialStashStackSize(pFile);
         }
 
         D2TxtFileItemProperties lItemType = D2TxtFile.ITEM_TYPES.searchColumns(
@@ -605,7 +628,8 @@ public class D2Item implements Comparable, D2ItemInterface {
                     image_file = s;
                 }
 
-                D2TxtFileItemProperties lUnique = D2TxtFile.UNIQUES.searchByID(unique_id);
+                D2TxtFileItemProperties lUnique = D2TxtFile.UNIQUES
+                        .searchColumns("*ID", String.valueOf(unique_id));
                 if (lUnique == null) break;
                 String lNewName = D2Files.getInstance().getTranslations().getTranslation(lUnique.get("index"));
                 if (lNewName != null) {
@@ -643,8 +667,8 @@ public class D2Item implements Comparable, D2ItemInterface {
                     .getRow(rare_name_1 - 156);
             D2TxtFileItemProperties lRareName2 = D2TxtFile.RARESUFFIX
                     .getRow(rare_name_2 - 1);
-                iItemName = D2Files.getInstance().getTranslations().getTranslation(lRareName1.get("name")) + " "
-                        + D2Files.getInstance().getTranslations().getTranslation(lRareName2.get("name"));
+            iItemName = D2Files.getInstance().getTranslations().getTranslation(lRareName1.get("name")) + " "
+                    + D2Files.getInstance().getTranslations().getTranslation(lRareName2.get("name"));
 
             rare_prefixes = new short[3];
             rare_suffixes = new short[3];
@@ -796,17 +820,12 @@ public class D2Item implements Comparable, D2ItemInterface {
                 i1Dmg[2] = i1Dmg[3] = Short.parseShort((D2TxtFile.WEAPONS
                         .searchColumns("code", item_type)).get("maxdam"));
             }
+        }
 
-            if ("1".equals(iItemType.get("stackable"))) {
-                iStackable = true;
-                iCurDur = (short) pFile.read(9);
-            }
-        } else if (isTypeMisc()) {
-            if ("1".equals(iItemType.get("stackable"))) {
-                iStackable = true;
-                iCurDur = (short) pFile.read(9);
-            }
-
+        int isStackableFlag = (int) pFile.read(1);
+        if ("1".equals(iItemType.get("stackable")) || isStackableFlag == 1) {
+            iStackable = true;
+            iCurDur = (short) pFile.read(9);
         }
 
         if (iSocketed) {
@@ -835,6 +854,30 @@ public class D2Item implements Comparable, D2ItemInterface {
         }
         if (iRuneWord) {
             readProperties(pFile, 0);
+        }
+
+        if (check_flag(29) && !iIdentified && (quality == 5 || quality == 7)) {
+            pFile.skipBits(16 + 32 + 4); //16 monster id + 32 time found + 4 unknown
+        }
+
+        readMaterialStashStackSize(pFile);
+    }
+
+    private boolean isStackableInTxtFiles() {
+        D2TxtFileItemProperties code = D2TxtFile.MISC.searchColumns("code", item_type);
+        return code != null && code.get("AdvancedStashStackable").equals("1");
+    }
+
+    private boolean isCompactInTxtFiles() {
+        D2TxtFileItemProperties code = D2TxtFile.MISC.searchColumns("code", item_type);
+        return code != null && code.get("compactsave").equals("1");
+    }
+
+    private void readMaterialStashStackSize(D2BitReader pFile) {
+        //new in D2R ROW, flag if item could be in material stash
+        long hasCount = pFile.read(1);
+        if (hasCount > 0 && isStackableInTxtFiles()) {
+            this.materialStashStackSize = (int) pFile.read(8);
         }
     }
 
@@ -891,17 +934,13 @@ public class D2Item implements Comparable, D2ItemInterface {
             if ((D2TxtFile.MISC.searchColumns("code", item_type)).get(
                     statsToRead[x]).equals(""))
                 continue;
-
-            Integer statValue = Ints.tryParse(D2TxtFile.MISC.searchColumns("code", item_type).get(statsToRead[x].replaceFirst("stat", "calc")));
-            if (statValue == null)
-            {
-                statValue = 0;
-            }
-
             iProps.add(new D2Prop(Integer.parseInt((D2TxtFile.ITEM_STAT_COST.searchColumns("Stat", (D2TxtFile.MISC
                     .searchColumns("code", item_type))
                     .get(statsToRead[x]))).get("*ID")),
-                    new int[]{ statValue }, 0));
+                    new int[]{Integer.parseInt(((D2TxtFile.MISC
+                            .searchColumns("code", item_type))
+                            .get(statsToRead[x].replaceFirst("stat",
+                                    "calc"))))}, 0));
         }
     }
 
@@ -998,11 +1037,7 @@ public class D2Item implements Comparable, D2ItemInterface {
             if (((D2Prop) iProps.get(x)).getPNum() == 97
                     || ((D2Prop) iProps.get(x)).getPNum() == 107) {
 
-                D2TxtFileItemProperties skillsRow = D2TxtFile.SKILLS.searchColumns(
-                        "skilldesc",
-                        D2TxtFile.SKILL_DESC.getRow(
-                                ((D2Prop) iProps.get(x)).getPVals()[0]).get(
-                                "skilldesc"));
+                D2TxtFileItemProperties skillsRow = getSkillsRowForId(((D2Prop) iProps.get(x)).getPVals()[0]);
                 String reqlevel = skillsRow.get("reqlevel");
                 try {
                     if (iReqLvl < Integer.parseInt(reqlevel)) {
@@ -1604,10 +1639,10 @@ public class D2Item implements Comparable, D2ItemInterface {
 
                 retStr = retStr
                         + D2Files.getInstance()
-                                .getTranslations()
-                                .getTranslation(D2TxtFile.PREFIX
-                                        .getRow(rare_prefixes[x])
-                                        .get("Name"))
+                        .getTranslations()
+                        .getTranslation(D2TxtFile.PREFIX
+                                .getRow(rare_prefixes[x])
+                                .get("Name"))
                         + " ";
             }
         }
@@ -1620,10 +1655,10 @@ public class D2Item implements Comparable, D2ItemInterface {
 
                 retStr = retStr
                         + D2Files.getInstance()
-                                .getTranslations()
-                                .getTranslation(D2TxtFile.SUFFIX
-                                        .getRow(rare_suffixes[x])
-                                        .get("Name"))
+                        .getTranslations()
+                        .getTranslation(D2TxtFile.SUFFIX
+                                .getRow(rare_suffixes[x])
+                                .get("Name"))
                         + " ";
             }
         }
@@ -1772,5 +1807,11 @@ public class D2Item implements Comparable, D2ItemInterface {
         return iCharLvl;
     }
 
-    public String getItem_type() { return item_type; }
+    public int getEndOfItemInBytes() {
+        return endOfItemInBytes;
+    }
+
+    public String getItemDifficulty() {
+        return itemDifficulty;
+    }
 }

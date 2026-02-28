@@ -13,8 +13,8 @@ import static java.util.Collections.emptyList;
 
 public class SharedStashPanel extends JPanel {
 
-    public static final int BG_WIDTH = 552;
-    public static final int BG_HEIGHT = 567;
+    public static final int BG_WIDTH = 362;
+    public static final int BG_HEIGHT = 470;
     private final D2FileManager fileManager;
     private final D2ViewSharedStash sharedStashView;
     private int selectedStashPaneIndex = 0;
@@ -36,7 +36,7 @@ public class SharedStashPanel extends JPanel {
     }
 
     public void build() {
-        Image lEmptyBackground = D2ImageCache.getImage("stash" + (selectedStashPaneIndex + 1) + ".png");
+        Image lEmptyBackground = D2ImageCache.getImage("sharedStash.jpg");
         background = fileManager.getGraphicsConfiguration().createCompatibleImage(BG_WIDTH, BG_HEIGHT, Transparency.BITMASK);
         Graphics2D lGraphics = (Graphics2D) background.getGraphics();
         lGraphics.drawImage(lEmptyBackground, 0, 0, this);
@@ -55,17 +55,18 @@ public class SharedStashPanel extends JPanel {
             int y = getYCoordForRow(row);
             background.getGraphics().drawImage(image, x, y, this);
         });
-        background.getGraphics().drawString(Long.toString(pane.getGold()), 248, 516);
+        background.getGraphics().drawString(Long.toString(getSharedStash().getPane(0).getGold()), 155, 439);
+        background.getGraphics().drawString("Page " + (selectedStashPaneIndex + 1) + " / " + fileManager.getVariant().getSharedStashConfig().getItemStashPaneCount(), 152, 405);
     }
 
     public static int getXCoordForCol(int col) {
         int diffx = (col / 2);
-        return (int)(30 + (col * 28.4) + ((diffx * 3) + ((col - diffx) * 2)));
+        return 29 + (col * 28) + ((diffx * 3) + ((col - diffx) * 2));
     }
 
     public static int getYCoordForRow(int row) {
         int diffy = (row / 2);
-        return (int)(77 + (row * 28.4) + ((diffy * 3) + ((row - diffy) * 2)));
+        return 75 + (row * 28) + ((diffy * 3) + ((row - diffy) * 2));
     }
 
     public static int getColForXCoord(int x) {
@@ -135,9 +136,22 @@ public class SharedStashPanel extends JPanel {
         this.selectedStashPaneIndex = selectedStashPaneIndex;
     }
 
+    public void moveToNextStashPane() {
+        if (selectedStashPaneIndex == fileManager.getVariant().getSharedStashConfig().getItemStashPaneCount() - 1)
+            return;
+        setSelectedStashPaneIndex(selectedStashPaneIndex + 1);
+        build();
+    }
+
+    public void moveToPriorStashPane() {
+        if (selectedStashPaneIndex == 0) return;
+        setSelectedStashPaneIndex(selectedStashPaneIndex - 1);
+        build();
+    }
+
     private D2SharedStash.D2SharedStashPane getD2SharedStashPane(D2SharedStash.D2SharedStashPane stashPane, java.util.List<D2Item> successfullyAddedItems, D2Item item) {
-        for (int i = 0; i < 13; i++) {
-            for (int j = 0; j < 16; j++) {
+        for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < 10; j++) {
                 if (stashPane.canDropItem(j, i, item)) {
                     stashPane = stashPane.addItem(j, i, item);
                     successfullyAddedItems.add(item);
@@ -146,5 +160,17 @@ public class SharedStashPanel extends JPanel {
             }
         }
         return stashPane;
+    }
+
+    public static boolean isInGoldArea(int x, int y) {
+        return x >= 120 && x <= 240 && y >= 418 && y <= 455;
+    }
+
+    public static boolean isInLeftStashSelectArea(int x, int y) {
+        return x >= 113 && x <= 136 && y >= 389 && y <= 412;
+    }
+
+    public static boolean isInRightStashSelectArea(int x, int y) {
+        return x >= 227 && x <= 250 && y >= 389 && y <= 412;
     }
 }

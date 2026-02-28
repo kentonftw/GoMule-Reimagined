@@ -22,6 +22,7 @@ package gomule.d2x;
 
 import gomule.gui.D2ItemListAdapter;
 import gomule.item.D2Item;
+import gomule.model.VersionController.Variant;
 import gomule.util.D2Backup;
 import gomule.util.D2BitReader;
 import gomule.util.D2Project;
@@ -30,59 +31,22 @@ import java.io.File;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 
-/**
- * @author Marco
- * <p>
- * TODO To change the template for this generated type comment go to
- * Window - Preferences - Java - Code Style - Code Templates
- */
 public class D2Stash extends D2ItemListAdapter {
-    //    private String		iFileName;
-    private ArrayList iItems;
+    private final D2StashWriter stashWriter;
+    private final ArrayList<D2Item> iItems;
+    private final String filename;
+    private final boolean iHC;
+    private final boolean iSC;
+    public static final int FIXED_STASH_CHAR_LEVEL = 75; // default char lvl for properties
 
-    private D2BitReader iBR;
-    private boolean iHC;
-    private boolean iSC;
-
-    private int iCharLvl = 75; // default char lvl for properties
-
-    private File lFile;
-
-//    private int iItemlistStart;
-//    private int iItemlistEnd;
-
-    public D2Stash(String pFileName) throws Exception {
-        super(pFileName);
-        if (iFileName == null || !iFileName.toLowerCase().endsWith(".d2x")) {
-            throw new Exception("Incorrect Stash file name");
-        }
-        iItems = new ArrayList();
-
-        lFile = new File(iFileName);
-
-        iSC = lFile.getName().toLowerCase().startsWith("sc_");
-        iHC = lFile.getName().toLowerCase().startsWith("hc_");
-
-        if (!iSC && !iHC) {
-            iSC = true;
-            iHC = true;
-        }
-
-        iBR = new D2BitReader(iFileName);
-
-        if (!iBR.isNewFile()) {
-            iBR.set_byte_pos(0);
-            byte lBytes[] = iBR.get_bytes(3);
-            String lStart = new String(lBytes);
-            if ("D2X".equals(lStart)) {
-                readAtmaItems();
-            }
-            // clear status
-            setModified(false);
-        } else {
-            // set status (for first save)
-            setModified(true);
-        }
+    public D2Stash(Variant variant, String filename, ArrayList<D2Item> d2Items, boolean iSC, boolean iHC, boolean isNewFile) {
+        super(filename);
+        this.stashWriter = new D2StashWriter(variant, filename);
+        this.filename = filename;
+        this.iHC = iHC;
+        this.iSC = iSC;
+        this.iItems = d2Items;
+        setModified(isNewFile);
     }
 
     public String getFilename() {
@@ -97,14 +61,14 @@ public class D2Stash extends D2ItemListAdapter {
         return iSC;
     }
 
-    public ArrayList getItemList() {
+    public ArrayList<D2Item> getItemList() {
         return iItems;
     }
 
     public void addItem(D2Item pItem) {
         if (pItem != null) {
             iItems.add(pItem);
-            pItem.setCharLvl(iCharLvl);
+            pItem.setCharLvl(FIXED_STASH_CHAR_LEVEL);
             setModified(true);
         }
     }
@@ -121,113 +85,20 @@ public class D2Stash extends D2ItemListAdapter {
     public ArrayList removeAllItems() {
         ArrayList lReturn = new ArrayList();
         lReturn.addAll(iItems);
-
         iItems.clear();
         setModified(true);
-
         return lReturn;
     }
-
 
     public int getNrItems() {
         return iItems.size();
     }
 
-    private void readAtmaItems() throws Exception {
-
-        iBR.set_byte_pos(7);
-        long lOriginal = iBR.read(32);
-
-        long lCalculated = calculateAtmaCheckSum();
-
-        if (lOriginal == lCalculated) {
-            iBR.set_byte_pos(3);
-
-            long lNumItems = iBR.read(16);
-
-            long lVersionNr = iBR.read(16);
-
-            if (lVersionNr == 99) {
-                readItems(lNumItems);
-            } else {
-                throw new Exception("Stash Version Incorrect!");
-            }
-        }
-    }
-
-    private long calculateAtmaCheckSum() {
-        long lCheckSum;
-        lCheckSum = 0;
-
-
-        iBR.set_byte_pos(0);
-        // calculate a new checksum
-        for (int i = 0; i < iBR.get_length(); i++) {
-            long lByte = iBR.read(8);
-            if (i >= 7 && i <= 10) {
-                lByte = 0;
-            }
-
-            long upshift = lCheckSum << 33 >>> 32;
-            long add = lByte + ((lCheckSum >>> 31) == 1 ? 1 : 0);
-            lCheckSum = upshift + add;
-        }
-
-//		System.err.println("Test " + lOriginal + " - " + lCheckSum + " = " + (lOriginal == lCheckSum) );
-        return lCheckSum;
-    }
-
-    private void readItems(long pNumItems) throws Exception {
-        iBR.set_byte_pos(11);
-        for (int i = 0; i < pNumItems; i++) {
-            D2Item lItem = new D2Item(iFileName, iBR, iCharLvl);
-            iItems.add(lItem);
-        }
-    }
-
     public void saveInternal(D2Project pProject) {
         // backup file
-        D2Backup.backup(pProject, iFileName, iBR);
-
-        int size = 0;
-        for (int i = 0; i < iItems.size(); i++)
-            size += ((D2Item) iItems.get(i)).get_bytes().length;
-        byte[] newbytes = new byte[size + 11];
-        newbytes[0] = 'D';
-        newbytes[1] = '2';
-        newbytes[2] = 'X';
-        int pos = 11;
-        for (int i = 0; i < iItems.size(); i++) {
-            byte[] item_bytes = ((D2Item) iItems.get(i)).get_bytes();
-            for (int j = 0; j < item_bytes.length; j++)
-                newbytes[pos++] = item_bytes[j];
-        }
-
-        iBR.setBytes(newbytes);
-
-        iBR.set_byte_pos(3);
-        iBR.write(iItems.size(), 16);
-        iBR.write(99, 16); // version 99
-//        iBR.replace_bytes(11, iBR.get_length(), newbytes);
-
-        long lCheckSum1 = calculateAtmaCheckSum();
-//        System.err.println("CheckSum at saving: " + lCheckSum1 );
-
-        iBR.set_byte_pos(7);
-        iBR.write(lCheckSum1, 32);
-
-        iBR.set_byte_pos(7);
-        long lCheckSum2 = iBR.read(32);
-
-//        long lCheckSum3 = calculateGoMuleCheckSum();
-//        System.err.println("CheckSum after insert: " + lCheckSum3 );
-
-        if (lCheckSum1 == lCheckSum2) {
-            iBR.save();
-            setModified(false);
-        } else {
-            System.err.println("Incorrect CheckSum");
-        }
+        D2Backup.backup(pProject, iFileName, new D2BitReader(iFileName));
+        stashWriter.write(this);
+        setModified(false);
     }
 
     public void fullDump(PrintWriter pWriter) {
@@ -235,7 +106,7 @@ public class D2Stash extends D2ItemListAdapter {
         pWriter.println();
         if (iItems != null) {
             for (int i = 0; i < iItems.size(); i++) {
-                D2Item lItem = (D2Item) iItems.get(i);
+                D2Item lItem = iItems.get(i);
                 lItem.toWriter(pWriter);
             }
         }
@@ -244,7 +115,6 @@ public class D2Stash extends D2ItemListAdapter {
     }
 
     public String getFileNameEnd() {
-        return lFile.getName();
+        return new File(filename).getName();
     }
-
 }

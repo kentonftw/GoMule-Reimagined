@@ -125,6 +125,8 @@ public final class D2TxtFile {
                 return "Druid";
             case 6:
                 return "Assassin";
+            case 7:
+                return "Warlock";
         }
         return "<none>";
     }
@@ -288,29 +290,6 @@ public final class D2TxtFile {
                         return new D2TxtFileItemProperties(this, i);
                     }
                 }
-            }
-        }
-
-        return null;
-    }
-
-    public D2TxtFileItemProperties searchByID(int id) {
-        if (iData == null) {
-            readInData();
-        }
-
-        if (id >= iData.length)
-            return null;
-
-        for (int i=0; i < iData.length; i++) {
-            if (iData[i][0].equals("Expansion")) {
-                if (id < i)
-                    return new D2TxtFileItemProperties(this, id);
-
-                if (id + 1 < iData.length)
-                    return new D2TxtFileItemProperties(this, id + 1);
-
-                return null;
             }
         }
 

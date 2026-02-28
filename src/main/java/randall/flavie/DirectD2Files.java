@@ -25,6 +25,7 @@ import gomule.d2i.D2SharedStash;
 import gomule.d2i.D2SharedStashReader;
 import gomule.d2s.D2Character;
 import gomule.d2x.D2Stash;
+import gomule.d2x.D2StashReader;
 import gomule.gui.D2FileManager;
 import gomule.item.D2Item;
 import gomule.item.D2Prop;
@@ -97,21 +98,21 @@ public class DirectD2Files {
 
                 if (lD2FileName.endsWith(".d2s")) {
                     try {
-                        D2Character lCharacter = new D2Character(lD2FileName);
+                        D2Character lCharacter = new D2Character(iFlavie.getVariant(), lD2FileName);
                         lItems = lCharacter.getItemList();
                     } catch (Exception e) {
                         errStr = errStr + ("Error with char " + lD2FileName + "\n");
                     }
                 } else if (lD2FileName.endsWith(".d2i")) {
                     try {
-                        D2SharedStash sharedStash = new D2SharedStashReader().readStash(lD2FileName);
+                        D2SharedStash sharedStash = new D2SharedStashReader().readStash(iFlavie.getVariant(), lD2FileName);
                         lItems = sharedStash.getItemList();
                     } catch (Exception e) {
                         errStr = errStr + ("Error with shared stash " + lD2FileName + "\n");
                     }
                 } else if (lD2FileName.endsWith(".d2x")) {
                     try {
-                        D2Stash lStash = new D2Stash(lD2FileName);
+                        D2Stash lStash = new D2StashReader().readStash(iFlavie.getVariant(), lD2FileName);
                         lItems = lStash.getItemList();
                     } catch (Exception e) {
                         errStr = errStr + ("Error with stash " + lD2FileName + "\n");
@@ -174,7 +175,7 @@ public class DirectD2Files {
                                                         "skilldesc",
                                                         D2TxtFile.SKILLS
                                                                 .getRow(((D2Prop) (pItem.getPropCollection()
-                                                                                .get(x)))
+                                                                        .get(x)))
                                                                         .getPVals()[1])
                                                                 .get("skilldesc"))
                                                 .get("str name"));
@@ -187,7 +188,7 @@ public class DirectD2Files {
                                                         "skilldesc",
                                                         D2TxtFile.SKILLS
                                                                 .getRow(((D2Prop) (pItem.getPropCollection()
-                                                                                .get(x)))
+                                                                        .get(x)))
                                                                         .getPVals()[1])
                                                                 .get("skilldesc"))
                                                 .get("str name"));
